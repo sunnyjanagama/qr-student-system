@@ -1,6 +1,20 @@
 // Centralized API Client for EduQR
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+export const getBaseUrl = () => {
+  const custom = typeof window !== 'undefined' ? localStorage.getItem('eduqr_api_url') : null;
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  const defaultUrl = 'http://localhost:8080';
+  const chosen = (custom || envUrl || defaultUrl).trim();
+  return chosen.replace(/\/+$/, '');
+};
+
+export const setBaseUrl = (url) => {
+  if (!url || !url.trim()) {
+    localStorage.removeItem('eduqr_api_url');
+  } else {
+    localStorage.setItem('eduqr_api_url', url.trim().replace(/\/+$/, ''));
+  }
+};
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('eduqr_token');
@@ -15,7 +29,7 @@ const getAuthHeaders = () => {
 
 const handleResponse = async (response) => {
   if (response.status === 401) {
-    // If token expired, clear and trigger custom event
+    // If token expired, clear
     localStorage.removeItem('eduqr_token');
     localStorage.removeItem('eduqr_user');
   }
@@ -37,12 +51,22 @@ const handleResponse = async (response) => {
 };
 
 export const api = {
-  baseUrl: API_BASE_URL,
+  getBaseUrl,
+  setBaseUrl,
+  get baseUrl() {
+    return getBaseUrl();
+  },
+
+  // Health Check
+  health: async () => {
+    const res = await fetch(`${getBaseUrl()}/api/health`);
+    return handleResponse(res);
+  },
 
   // Auth
   auth: {
     login: async (username, password) => {
-      const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      const res = await fetch(`${getBaseUrl()}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
@@ -51,7 +75,7 @@ export const api = {
     },
 
     register: async (userData) => {
-      const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
+      const res = await fetch(`${getBaseUrl()}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(userData),
@@ -60,9 +84,14 @@ export const api = {
     },
 
     me: async () => {
-      const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
+      const res = await fetch(`${getBaseUrl()}/api/auth/me`, {
         headers: getAuthHeaders(),
       });
+      return handleResponse(res);
+    },
+
+    health: async () => {
+      const res = await fetch(`${getBaseUrl()}/api/health`);
       return handleResponse(res);
     },
   },
@@ -77,21 +106,21 @@ export const api = {
       params.append('page', page);
       params.append('size', size);
 
-      const res = await fetch(`${API_BASE_URL}/api/students?${params.toString()}`, {
+      const res = await fetch(`${getBaseUrl()}/api/students?${params.toString()}`, {
         headers: getAuthHeaders(),
       });
       return handleResponse(res);
     },
 
     getById: async (id) => {
-      const res = await fetch(`${API_BASE_URL}/api/students/${id}`, {
+      const res = await fetch(`${getBaseUrl()}/api/students/${id}`, {
         headers: getAuthHeaders(),
       });
       return handleResponse(res);
     },
 
     create: async (studentData) => {
-      const res = await fetch(`${API_BASE_URL}/api/students`, {
+      const res = await fetch(`${getBaseUrl()}/api/students`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(studentData),
@@ -100,7 +129,7 @@ export const api = {
     },
 
     update: async (id, studentData) => {
-      const res = await fetch(`${API_BASE_URL}/api/students/${id}`, {
+      const res = await fetch(`${getBaseUrl()}/api/students/${id}`, {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify(studentData),
@@ -109,7 +138,7 @@ export const api = {
     },
 
     delete: async (id) => {
-      const res = await fetch(`${API_BASE_URL}/api/students/${id}`, {
+      const res = await fetch(`${getBaseUrl()}/api/students/${id}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
       });
@@ -117,7 +146,7 @@ export const api = {
     },
 
     regenerateQr: async (id) => {
-      const res = await fetch(`${API_BASE_URL}/api/students/${id}/regenerate-qr`, {
+      const res = await fetch(`${getBaseUrl()}/api/students/${id}/regenerate-qr`, {
         method: 'POST',
         headers: getAuthHeaders(),
       });
@@ -125,7 +154,7 @@ export const api = {
     },
 
     exportCsv: async () => {
-      const res = await fetch(`${API_BASE_URL}/api/students/export/csv`, {
+      const res = await fetch(`${getBaseUrl()}/api/students/export/csv`, {
         headers: getAuthHeaders(),
       });
       if (!res.ok) throw new Error('Failed to download CSV');
@@ -144,12 +173,12 @@ export const api = {
   // QR Code Verification
   qr: {
     verify: async (input) => {
-      const res = await fetch(`${API_BASE_URL}/api/qr/verify/${encodeURIComponent(input)}`);
+      const res = await fetch(`${getBaseUrl()}/api/qr/verify/${encodeURIComponent(input)}`);
       return handleResponse(res);
     },
 
     logScan: async (payload) => {
-      const res = await fetch(`${API_BASE_URL}/api/qr/log-scan`, {
+      const res = await fetch(`${getBaseUrl()}/api/qr/log-scan`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(payload),
@@ -157,13 +186,13 @@ export const api = {
       return handleResponse(res);
     },
 
-    getImageUrl: (id) => `${API_BASE_URL}/api/qr/student/${id}/image`,
+    getImageUrl: (id) => `${getBaseUrl()}/api/qr/student/${id}/image`,
   },
 
   // Analytics
   analytics: {
     getStats: async () => {
-      const res = await fetch(`${API_BASE_URL}/api/analytics/dashboard`, {
+      const res = await fetch(`${getBaseUrl()}/api/analytics/dashboard`, {
         headers: getAuthHeaders(),
       });
       return handleResponse(res);
